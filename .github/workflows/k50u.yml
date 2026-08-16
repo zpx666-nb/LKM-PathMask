@@ -1,0 +1,68 @@
+name: Build‑PathMask‑K50U‑diting
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取你的LKM‑PathMask仓库
+        uses: actions/checkout@v4
+
+      - name: 安装编译依赖
+        run: |
+          sudo apt update -y
+          sudo apt install -y git bc bison flex libssl-dev libelf-dev python3 zstd zip
+
+      - name: 克隆小米diting官方内核源码 android12‑5.10
+        run: git clone --depth=1 -b android12-5.10 https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git kernel
+
+      - name: 下载K50U原厂对应 Clang r416183b
+        run: |
+          wget https://dl.google.com/android/repository/android-clang-r416183b-linux-x86_64.zip
+          unzip android-clang-r416183b-linux-x86_64.zip
+          echo "PATH=$PWD/android-clang-r416183b/bin:$PATH" >> $GITHUB_ENV
+
+      - name: 导入本机config.gz，关闭LTO
+        run: |
+          zcat kernel_data/config.gz > kernel/.config
+          cd kernel
+          ./scripts/config --file .config -d LTO_CLANG -d LTO_CLANG_THIN -e LTO_NONE -d CFI_CLANG
+          make ARCH=arm64 LLVM=1 olddefconfig
+
+      - name: 编译vmlinux，生成vmlinux.symvers
+        run: |
+          cd kernel
+          make ARCH=arm64 LLVM=1 LLVM_IAS=1 -j4 vmlinux || true
+          ln -sf vmlinux.symvers Module.symvers
+
+      - name: 编译 pathmask.ko
+        run: |
+          KDIR=$PWD/kernel make
+
+      - name: 自动打包成KernelSU可刷入zip
+        run: |
+          mkdir -p ksu_out
+          cp pathmask.ko ksu_out/
+          cat > ksu_out/module.prop << 'EOF'
+id=pathmask
+name=LKM‑PathMask‑K50U
+version=1.0‑diting
+versionCode=1
+author=Github AutoBuild
+description=PathMask 适配红米K50至尊版 Nemo内核
+EOF
+          cat > ksu_out/post-fs-data.sh << 'EOF'
+#!/system/bin/sh
+MODDIR=${0%/*}
+insmod $MODDIR/pathmask.ko
+EOF
+          chmod 755 ksu_out/post-fs-data.sh
+          cd ksu_out
+          zip -r ../PathMask‑K50U‑成品.zip .
+
+      - name: 上传最终刷机包
+        uses: actions/upload-artifact@v4
+        with:
+          name: PathMask‑K50U‑刷机包
+          path: PathMask‑K50U‑成品.zip
+
