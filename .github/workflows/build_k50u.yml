@@ -1,4 +1,3 @@
-
 name: Build‑PathMask‑K50U‑diting
 on: workflow_dispatch
 
@@ -6,41 +5,41 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 拉取你的LKM‑PathMask仓库
+      - name: 拉取仓库
         uses: actions/checkout@v4
 
-      - name: 安装编译依赖
+      - name: 安装依赖
         run: |
           sudo apt update -y
           sudo apt install -y git bc bison flex libssl-dev libelf-dev python3 zstd zip
 
-      - name: 克隆小米diting官方内核源码 android12‑5.10
+      - name: 克隆diting内核源码 android12‑5.10
         run: git clone --depth=1 -b android12-5.10 https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git kernel
 
-      - name: 下载K50U原厂对应 Clang r416183b
+      - name: 获取Clang编译器
         run: |
           wget https://dl.google.com/android/repository/android-clang-r416183b-linux-x86_64.zip
           unzip android-clang-r416183b-linux-x86_64.zip
           echo "PATH=$PWD/android-clang-r416183b/bin:$PATH" >> $GITHUB_ENV
 
-      - name: 导入本机config.gz，关闭LTO
+      - name: 导入config，关闭LTO
         run: |
           zcat kernel_data/config.gz > kernel/.config
           cd kernel
           ./scripts/config --file .config -d LTO_CLANG -d LTO_CLANG_THIN -e LTO_NONE -d CFI_CLANG
           make ARCH=arm64 LLVM=1 olddefconfig
 
-      - name: 编译vmlinux，生成vmlinux.symvers
+      - name: 编译vmlinux，生成symvers
         run: |
           cd kernel
           make ARCH=arm64 LLVM=1 LLVM_IAS=1 -j4 vmlinux || true
           ln -sf vmlinux.symvers Module.symvers
 
-      - name: 编译 pathmask.ko
+      - name: 编译pathmask ko
         run: |
           KDIR=$PWD/kernel make
 
-      - name: 自动打包成KernelSU可刷入zip
+      - name: 打包模块zip
         run: |
           mkdir -p ksu_out
           cp pathmask.ko ksu_out/
@@ -50,7 +49,7 @@ name=LKM‑PathMask‑K50U
 version=1.0‑diting
 versionCode=1
 author=Github AutoBuild
-description=PathMask 适配红米K50至尊版 Nemo内核
+description=PathMask K50Ultra
 EOF
           cat > ksu_out/post-fs-data.sh << 'EOF'
 #!/system/bin/sh
@@ -58,10 +57,9 @@ MODDIR=${0%/*}
 insmod $MODDIR/pathmask.ko
 EOF
           chmod 755 ksu_out/post-fs-data.sh
-          cd ksu_out
-          zip -r ../PathMask‑K50U‑成品.zip .
+          zip -r PathMask‑K50U‑成品.zip -j ksu_out/*
 
-      - name: 上传最终刷机包
+      - name: 上传成品包
         uses: actions/upload-artifact@v4
         with:
           name: PathMask‑K50U‑刷机包
