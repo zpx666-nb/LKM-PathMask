@@ -43,19 +43,8 @@ jobs:
         run: |
           mkdir -p ksu_out
           cp pathmask.ko ksu_out/
-          cat > ksu_out/module.prop << 'EOF'
-id=pathmask
-name=LKM‑PathMask‑K50U
-version=1.0‑diting
-versionCode=1
-author=Github AutoBuild
-description=PathMask K50Ultra
-EOF
-          cat > ksu_out/post-fs-data.sh << 'EOF'
-#!/system/bin/sh
-MODDIR=${0%/*}
-insmod $MODDIR/pathmask.ko
-EOF
+          cp module.prop ksu_out/
+          cp post-fs-data.sh ksu_out/
           chmod 755 ksu_out/post-fs-data.sh
           zip -r PathMask‑K50U‑成品.zip -j ksu_out/*
 
